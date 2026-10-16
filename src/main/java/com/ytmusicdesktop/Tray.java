@@ -19,7 +19,8 @@ final class Tray {
     }
 
     /** Adds the tray icon. Returns null if the system has no tray, so the caller can quit on close instead. */
-    static Tray install(MainWindow window, PlayerControls player, Runnable quit) {
+    static Tray install(MainWindow window, MiniPlayer miniPlayer, PlayerControls player,
+                        SettingsDialog settings, Runnable quit) {
         if (!SystemTray.isSupported()) {
             return null;
         }
@@ -30,7 +31,9 @@ final class Tray {
         menu.add(item("Previous", player::previous));
         menu.addSeparator();
         menu.add(item("Show / Hide", window::toggleVisibility));
+        menu.add(item("Mini Player", miniPlayer::toggle));
         menu.addSeparator();
+        menu.add(item("Settings...", settings::show));
         menu.add(item("Quit", quit));
 
         TrayIcon icon = new TrayIcon(Icons.trayIcon(), "YT Music", menu);

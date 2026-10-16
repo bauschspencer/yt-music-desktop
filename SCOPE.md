@@ -14,7 +14,7 @@ player handles playback; this app adds desktop integration around it.
 | UI shell    | Swing (`JFrame` hosting the CEF browser)   | JCEF integrates with AWT/Swing natively |
 | Build       | Maven                                      | Already installed |
 | Platform    | Windows 11 only                            | Cross-platform is out of scope |
-| Packaging   | `jpackage` app-image (optional)            | A double-clickable exe without an installer |
+| Packaging   | `jpackage` app-image                       | A double-clickable exe without an installer |
 
 ## Architecture
 
@@ -29,13 +29,15 @@ player handles playback; this app adds desktop integration around it.
 │                                       │                │
 │                              MediaBridge → PlaybackState
 │                                       │                │
-│                     Tray tooltip ◄────┴────► Window title
+│          Tray tooltip ◄── Window title ──► MiniPlayer  │
 └────────────────────────────────────────────────────────┘
 ```
 
 - **Java → page:** `PlayerControls` runs `executeJavaScript(...)` to click player-bar buttons.
 - **Page → Java:** `bridge.js` polls once a second and posts changes through
   `CefMessageRouter` (`window.cefQuery`); `MediaBridge` parses them into `PlaybackState`.
+- **Injection:** `App.injectOnLoad` runs `bridge.js` plus the user's custom CSS/JS on each
+  YT Music page load (a `CefClient` keeps only one load handler).
 - **Persistent login:** CEF `cache_path` under `%APPDATA%\YTMusicDesktop\profile`.
 - **Single instance:** file lock + loopback socket (`SingleInstance`), checked before CEF starts.
 
@@ -55,21 +57,23 @@ player handles playback; this app adds desktop integration around it.
 - [x] Now playing (and paused state) in tray tooltip and window title
 
 ### v0.3 — Nice to have
-- [ ] Mini-player / always-on-top mode
-- [ ] User CSS/JS injection (themes, hiding UI elements)
-- [ ] Settings dialog + JSON config file
-- [ ] Last.fm scrobbling
-- [ ] `jpackage` app-image
+- [x] Mini-player: always-on-top, art + title + controls, draggable, remembers position/open state
+- [x] User CSS/JS injection from `%APPDATA%\YTMusicDesktop\custom`
+- [x] Settings dialog + `settings.json` (close-to-tray vs quit, custom CSS/JS on/off)
+- [x] `jpackage` app-image (`YT Music.exe` with bundled runtime)
+
+## Build & run
+- **Dev:** `mvn compile exec:exec`
+- **Standalone:** `mvn package` → `target/dist/YT Music/YT Music.exe` (copy the whole
+  `YT Music` folder somewhere outside `target/` before using it; `mvn clean` deletes it)
+- **User data** (`%APPDATA%\YTMusicDesktop`): `profile/` (login), `jcef-bundle/` (Chromium),
+  `custom/` (user CSS/JS), `settings.json`, `window.properties`, `miniplayer.properties`
 
 ## Out of scope
 - Downloading / offline audio
 - Custom playback engine or native (non-web) UI
 - macOS / Linux
 - Installer, code signing, auto-update
-- Mobile
-- Pop-up / toast notifications (tried for track changes; too intrusive)
-- Discord Rich Presence
-- Global hotkeys (media keys already cover playback control)
 
 ## Known risks
 1. ✅ **Google sign-in in embedded Chromium.** Works with a stock Chrome user-agent
@@ -90,4 +94,4 @@ player handles playback; this app adds desktop integration around it.
 
 ## Libraries
 - `me.friwi:jcefmaven` — JCEF + auto-downloaded Chromium natives
-- `com.google.code.gson:gson` — bridge messages (and a config file, if v0.3 adds one)
+- `com.google.code.gson:gson` — bridge messages and `settings.json`

@@ -5,19 +5,12 @@ import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Frame;
-import java.awt.GraphicsDevice;
-import java.awt.GraphicsEnvironment;
 import java.awt.Rectangle;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.IOException;
-import java.io.Reader;
-import java.io.Writer;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Properties;
 
 /** The app's main frame, with show/hide-to-tray behavior and saved size/position. */
 final class MainWindow {
@@ -101,39 +94,20 @@ final class MainWindow {
     }
 
     void saveState() {
-        Properties props = new Properties();
-        props.setProperty("x", Integer.toString(normalBounds.x));
-        props.setProperty("y", Integer.toString(normalBounds.y));
-        props.setProperty("width", Integer.toString(normalBounds.width));
-        props.setProperty("height", Integer.toString(normalBounds.height));
-        props.setProperty("maximized", Boolean.toString(isMaximized()));
-        try (Writer out = Files.newBufferedWriter(stateFile)) {
-            props.store(out, "YT Music window state");
-        } catch (IOException e) {
-            System.err.println("Could not save window state: " + e.getMessage());
-        }
+        new WindowState(normalBounds, isMaximized(), frame.isVisible()).save(stateFile);
     }
 
     private void restoreState() {
-        Properties props = new Properties();
-        if (Files.exists(stateFile)) {
-            try (Reader in = Files.newBufferedReader(stateFile)) {
-                props.load(in);
-            } catch (IOException e) {
-                System.err.println("Could not read window state: " + e.getMessage());
-            }
-        }
-
-        Rectangle saved = parseBounds(props);
-        if (saved != null && isOnAnyScreen(saved)) {
-            frame.setBounds(saved);
+        WindowState saved = WindowState.load(stateFile);
+        if (saved != null && saved.isOnScreen()) {
+            frame.setBounds(saved.bounds());
         } else {
             frame.setSize(DEFAULT_WIDTH, DEFAULT_HEIGHT);
             frame.setLocationRelativeTo(null);
         }
         normalBounds = frame.getBounds();
 
-        if (Boolean.parseBoolean(props.getProperty("maximized"))) {
+        if (saved != null && saved.maximized()) {
             frame.setExtendedState(Frame.MAXIMIZED_BOTH);
         }
     }
@@ -150,28 +124,5 @@ final class MainWindow {
 
     private boolean isMaximized() {
         return (frame.getExtendedState() & Frame.MAXIMIZED_BOTH) == Frame.MAXIMIZED_BOTH;
-    }
-
-    private static Rectangle parseBounds(Properties props) {
-        try {
-            return new Rectangle(
-                    Integer.parseInt(props.getProperty("x")),
-                    Integer.parseInt(props.getProperty("y")),
-                    Integer.parseInt(props.getProperty("width")),
-                    Integer.parseInt(props.getProperty("height")));
-        } catch (NumberFormatException e) {
-            return null; // Missing or malformed; fall back to defaults.
-        }
-    }
-
-    /** True if the window's title bar would land on a connected monitor (it may have been unplugged). */
-    private static boolean isOnAnyScreen(Rectangle bounds) {
-        Rectangle titleBar = new Rectangle(bounds.x, bounds.y, bounds.width, 40);
-        for (GraphicsDevice screen : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
-            if (screen.getDefaultConfiguration().getBounds().intersects(titleBar)) {
-                return true;
-            }
-        }
-        return false;
     }
 }

@@ -6,7 +6,7 @@
 
     <groupId>com.ytmusicdesktop</groupId>
     <artifactId>ytmusic-desktop</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.3.0</version>
     <name>YT Music Desktop</name>
 
     <properties>
@@ -30,6 +30,7 @@
     </dependencies>
 
     <build>
+        <finalName>ytmusic-desktop</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -37,23 +38,117 @@
                 <version>3.16.0</version>
             </plugin>
 
-            <!-- `mvn compile exec:exec` launches the app in a separate JVM so JVM flags apply. -->
+            <!-- Packaging: gather the app jar and its dependencies into target/app for jpackage. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.5.1</version>
+                <configuration>
+                    <outputDirectory>${project.build.directory}/app</outputDirectory>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.11.0</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/app</outputDirectory>
+                            <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- jpackage refuses to overwrite an existing app image, so clear it first. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>clean-dist</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <configuration>
+                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.build.directory}/dist</directory>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>3.6.4</version>
-                <configuration>
-                    <executable>java</executable>
-                    <arguments>
-                        <argument>--enable-native-access=ALL-UNNAMED</argument>
-                        <argument>--add-exports=java.base/java.lang=ALL-UNNAMED</argument>
-                        <argument>--add-exports=java.desktop/sun.awt=ALL-UNNAMED</argument>
-                        <argument>--add-exports=java.desktop/sun.java2d=ALL-UNNAMED</argument>
-                        <argument>-classpath</argument>
-                        <classpath/>
-                        <argument>${main.class}</argument>
-                    </arguments>
-                </configuration>
+                <executions>
+                    <!-- `mvn compile exec:exec` launches the app in a separate JVM so JVM flags apply. -->
+                    <execution>
+                        <id>default-cli</id>
+                        <configuration>
+                            <executable>java</executable>
+                            <arguments>
+                                <!-- Keep in sync with the jpackage java-options below. -->
+                                <argument>--enable-native-access=ALL-UNNAMED</argument>
+                                <argument>--add-exports=java.base/java.lang=ALL-UNNAMED</argument>
+                                <argument>--add-exports=java.desktop/sun.awt=ALL-UNNAMED</argument>
+                                <argument>--add-exports=java.desktop/sun.java2d=ALL-UNNAMED</argument>
+                                <argument>-classpath</argument>
+                                <classpath/>
+                                <argument>${main.class}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <!-- `mvn package` builds target/dist/YT Music/YT Music.exe with a bundled Java runtime. -->
+                    <execution>
+                        <id>jpackage</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>${java.home}/bin/jpackage</executable>
+                            <arguments>
+                                <argument>--type</argument>
+                                <argument>app-image</argument>
+                                <argument>--name</argument>
+                                <argument>YT Music</argument>
+                                <argument>--app-version</argument>
+                                <argument>${project.version}</argument>
+                                <argument>--icon</argument>
+                                <argument>${project.basedir}/src/main/packaging/app.ico</argument>
+                                <argument>--input</argument>
+                                <argument>${project.build.directory}/app</argument>
+                                <argument>--main-jar</argument>
+                                <argument>${project.build.finalName}.jar</argument>
+                                <argument>--main-class</argument>
+                                <argument>${main.class}</argument>
+                                <argument>--java-options</argument>
+                                <argument>--enable-native-access=ALL-UNNAMED</argument>
+                                <argument>--java-options</argument>
+                                <argument>--add-exports=java.base/java.lang=ALL-UNNAMED</argument>
+                                <argument>--java-options</argument>
+                                <argument>--add-exports=java.desktop/sun.awt=ALL-UNNAMED</argument>
+                                <argument>--java-options</argument>
+                                <argument>--add-exports=java.desktop/sun.java2d=ALL-UNNAMED</argument>
+                                <argument>--dest</argument>
+                                <argument>${project.build.directory}/dist</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -6,10 +6,16 @@ import org.cef.CefApp;
 import org.cef.CefClient;
 import org.cef.CefSettings;
 import org.cef.browser.CefBrowser;
+import org.cef.browser.CefFrame;
+import org.cef.handler.CefLoadHandlerAdapter;
 
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Supplier;
 
 public class App {
 
@@ -24,7 +30,9 @@ public class App {
     public static void main(String[] args) throws Exception {
         Path appData = Path.of(System.getenv("APPDATA"), "YTMusicDesktop");
         Path profileDir = appData.resolve("profile");
+        Path customDir = appData.resolve("custom");
         Files.createDirectories(profileDir);
+        CustomCode.ensureFolder(customDir);
 
         // Must happen before CEF starts: two processes can't share one Chromium profile.
         SingleInstance instance = SingleInstance.acquire(appData);
@@ -32,27 +40,49 @@ public class App {
             return; // The running instance was told to show its window.
         }
 
+        UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        Settings settings = Settings.load(appData.resolve("settings.json"));
+
         CefApp cefApp = createCefApp(appData, profileDir);
         CefClient client = cefApp.createClient();
-        MediaBridge bridge = new MediaBridge(client, START_URL);
+        MediaBridge bridge = new MediaBridge(client);
+        injectOnLoad(client, () -> {
+            List<String> scripts = new ArrayList<>();
+            scripts.add(bridge.script());
+            if (settings.customCodeEnabled) {
+                scripts.addAll(CustomCode.scripts(customDir));
+            }
+            return scripts;
+        });
         CefBrowser browser = client.createBrowser(START_URL, false, false);
 
         SwingUtilities.invokeLater(() -> {
             MainWindow window = new MainWindow(browser.getUIComponent(), appData.resolve("window.properties"));
             PlayerControls player = new PlayerControls(browser);
+            MiniPlayer miniPlayer = new MiniPlayer(player, window::showAndFocus, appData.resolve("miniplayer.properties"));
+            SettingsDialog settingsDialog = new SettingsDialog(settings, customDir, browser::reload);
 
             Runnable quit = () -> {
                 window.saveState();
+                miniPlayer.saveState();
                 // Disposing CefApp flushes cookies to disk, then TERMINATED exits the JVM.
                 cefApp.dispose();
+                miniPlayer.dispose();
                 window.dispose();
             };
 
-            Tray tray = Tray.install(window, player, quit);
-            window.setCloseAction(tray != null ? window::hideToTray : quit);
+            Tray tray = Tray.install(window, miniPlayer, player, settingsDialog, quit);
+            window.setCloseAction(() -> {
+                if (tray != null && settings.closeToTray) {
+                    window.hideToTray();
+                } else {
+                    quit.run();
+                }
+            });
 
             bridge.setListener(state -> {
                 window.showState(state);
+                miniPlayer.showState(state);
                 if (tray != null) {
                     tray.showState(state);
                 }
@@ -60,6 +90,22 @@ public class App {
 
             instance.onActivate(() -> SwingUtilities.invokeLater(window::showAndFocus));
             window.show();
+            miniPlayer.restore();
+        });
+    }
+
+    /** Runs the given scripts in YT Music each time it loads (not in iframes or the sign-in pages). */
+    private static void injectOnLoad(CefClient client, Supplier<List<String>> scripts) {
+        // A CefClient keeps only one load handler, so all injection goes through here.
+        client.addLoadHandler(new CefLoadHandlerAdapter() {
+            @Override
+            public void onLoadEnd(CefBrowser browser, CefFrame frame, int httpStatusCode) {
+                if (frame.isMain() && frame.getURL().startsWith(START_URL)) {
+                    for (String script : scripts.get()) {
+                        frame.executeJavaScript(script, frame.getURL(), 0);
+                    }
+                }
+            }
         });
     }
 
@@ -68,12 +114,12 @@ public class App {
         // Chromium natives (~150 MB) are downloaded here on first launch.
         builder.setInstallDir(appData.resolve("jcef-bundle").toFile());
 
-        CefSettings settings = builder.getCefSettings();
-        settings.windowless_rendering_enabled = false;
-        settings.root_cache_path = profileDir.toString();
-        settings.cache_path = profileDir.toString();
-        settings.persist_session_cookies = true;
-        settings.user_agent = USER_AGENT;
+        CefSettings cefSettings = builder.getCefSettings();
+        cefSettings.windowless_rendering_enabled = false;
+        cefSettings.root_cache_path = profileDir.toString();
+        cefSettings.cache_path = profileDir.toString();
+        cefSettings.persist_session_cookies = true;
+        cefSettings.user_agent = USER_AGENT;
 
         // Route media keys / Windows media overlay through the Media Session API.
         builder.addJcefArgs("--enable-features=HardwareMediaKeyHandling");

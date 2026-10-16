@@ -7,7 +7,6 @@ import org.cef.browser.CefBrowser;
 import org.cef.browser.CefFrame;
 import org.cef.browser.CefMessageRouter;
 import org.cef.callback.CefQueryCallback;
-import org.cef.handler.CefLoadHandlerAdapter;
 import org.cef.handler.CefMessageRouterHandlerAdapter;
 
 import javax.swing.SwingUtilities;
@@ -18,8 +17,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
 
 /**
- * Injects bridge.js into YT Music and turns its messages into {@link PlaybackState} updates,
- * delivered on the Swing thread.
+ * Provides bridge.js for injection into YT Music and turns its messages into
+ * {@link PlaybackState} updates, delivered on the Swing thread.
  */
 final class MediaBridge {
 
@@ -29,18 +28,8 @@ final class MediaBridge {
     private final String script;
     private Consumer<PlaybackState> listener = state -> {};
 
-    MediaBridge(CefClient client, String pageUrl) {
+    MediaBridge(CefClient client) {
         script = loadScript().replace("__PREFIX__", PREFIX);
-
-        client.addLoadHandler(new CefLoadHandlerAdapter() {
-            @Override
-            public void onLoadEnd(CefBrowser browser, CefFrame frame, int httpStatusCode) {
-                // Skip iframes and the Google sign-in pages.
-                if (frame.isMain() && frame.getURL().startsWith(pageUrl)) {
-                    frame.executeJavaScript(script, frame.getURL(), 0);
-                }
-            }
-        });
 
         CefMessageRouter router = CefMessageRouter.create();
         router.addHandler(new CefMessageRouterHandlerAdapter() {
@@ -61,6 +50,11 @@ final class MediaBridge {
             }
         }, true);
         client.addMessageRouter(router);
+    }
+
+    /** The script to run in the page on each load. */
+    String script() {
+        return script;
     }
 
     /** Called on the Swing thread whenever the playback state changes. */
