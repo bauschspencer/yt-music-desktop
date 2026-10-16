@@ -15,9 +15,9 @@ jobs:
   build:
     runs-on: windows-2025
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '26'
@@ -36,7 +36,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         shell: pwsh
         run: |
-          $version = mvn -q help:evaluate -Dexpression=project.version -DforceStdout
+          # Quoted: PowerShell would otherwise split the -D argument at the dot.
+          $version = mvn -q help:evaluate "-Dexpression=project.version" -DforceStdout
           if ("v$version" -ne '${{ github.ref_name }}') {
             throw "Tag ${{ github.ref_name }} doesn't match pom.xml version $version. Bump <version> in pom.xml first."
           }
@@ -44,14 +45,14 @@ jobs:
       - name: Build installer
         run: mvn -B package -Pinstaller
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: YT-Music-installer
           path: target/installer/*.msi
 
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: target/installer/*.msi
           generate_release_notes: true
