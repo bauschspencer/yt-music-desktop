@@ -6,7 +6,8 @@
 
     <groupId>com.ytmusicdesktop</groupId>
     <artifactId>ytmusic-desktop</artifactId>
-    <version>0.3.0</version>
+    <!-- Installers only upgrade an existing install when this increases (numeric x.y.z only). -->
+    <version>0.4.0</version>
     <name>YT Music Desktop</name>
 
     <properties>
@@ -152,4 +153,59 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+            `mvn package -Pinstaller` also wraps the app image in an .msi (target/installer).
+            Needs WiX Toolset on PATH, so it runs in GitHub Actions (.github/workflows/release.yml);
+            Smart App Control blocks WiX on the dev machine.
+        -->
+        <profile>
+            <id>installer</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jpackage-msi</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${java.home}/bin/jpackage</executable>
+                                    <arguments>
+                                        <argument>--type</argument>
+                                        <argument>msi</argument>
+                                        <argument>--app-image</argument>
+                                        <argument>${project.build.directory}/dist/YT Music</argument>
+                                        <argument>--name</argument>
+                                        <argument>YT Music</argument>
+                                        <argument>--app-version</argument>
+                                        <argument>${project.version}</argument>
+                                        <argument>--vendor</argument>
+                                        <argument>Spencer Bausch</argument>
+                                        <argument>--description</argument>
+                                        <argument>YouTube Music desktop app</argument>
+                                        <!-- Never change: it's how Windows knows a new .msi upgrades the old install. -->
+                                        <argument>--win-upgrade-uuid</argument>
+                                        <argument>4e0e1895-9422-49b9-a05c-4419e7cd7972</argument>
+                                        <!-- Installs under the user's profile, so no admin prompt. -->
+                                        <argument>--win-per-user-install</argument>
+                                        <argument>--win-menu</argument>
+                                        <argument>--win-shortcut</argument>
+                                        <argument>--win-shortcut-prompt</argument>
+                                        <argument>--dest</argument>
+                                        <argument>${project.build.directory}/installer</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

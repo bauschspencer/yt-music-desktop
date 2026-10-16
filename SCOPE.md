@@ -62,18 +62,34 @@ player handles playback; this app adds desktop integration around it.
 - [x] Settings dialog + `settings.json` (close-to-tray vs quit, custom CSS/JS on/off)
 - [x] `jpackage` app-image (`YT Music.exe` with bundled runtime)
 
+### v0.4 — Installer (for installing on multiple personal devices)
+- [ ] `.msi` built by GitHub Actions and attached to a GitHub Release on each `v*` tag
+- [ ] Per-user install (no admin prompt), Start menu + optional desktop shortcut
+- [ ] New versions upgrade the existing install in place
+
+Unsigned for now. Devices with **Smart App Control** on (Windows 11) will likely block
+it; Azure Trusted Signing (~$10/month) is the fix if that becomes a problem.
+
 ## Build & run
 - **Dev:** `mvn compile exec:exec`
 - **Standalone:** `mvn package` → `target/dist/YT Music/YT Music.exe` (copy the whole
   `YT Music` folder somewhere outside `target/` before using it; `mvn clean` deletes it)
+- **Installer:** `mvn package -Pinstaller` → `target/installer/YT Music-<version>.msi`.
+  Needs WiX Toolset, which Smart App Control blocks on the dev machine, so it's built by
+  [.github/workflows/release.yml](.github/workflows/release.yml) instead.
+- **Releasing a new version:**
+  1. Bump `<version>` in `pom.xml` (must increase, or installs won't upgrade)
+  2. Commit, then `git tag v<version>` and `git push --follow-tags`
+  3. The workflow publishes a GitHub Release with the `.msi`
 - **User data** (`%APPDATA%\YTMusicDesktop`): `profile/` (login), `jcef-bundle/` (Chromium),
-  `custom/` (user CSS/JS), `settings.json`, `window.properties`, `miniplayer.properties`
+  `custom/` (user CSS/JS), `settings.json`, `window.properties`, `miniplayer.properties`.
+  Each device has its own; uninstalling leaves it in place.
 
 ## Out of scope
 - Downloading / offline audio
 - Custom playback engine or native (non-web) UI
 - macOS / Linux
-- Installer, code signing, auto-update
+- Code signing (for now), auto-update
 
 ## Known risks
 1. ✅ **Google sign-in in embedded Chromium.** Works with a stock Chrome user-agent
