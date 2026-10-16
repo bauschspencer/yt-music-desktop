@@ -22,10 +22,11 @@ import java.util.Properties;
 /** The app's main frame, with show/hide-to-tray behavior and saved size/position. */
 final class MainWindow {
 
+    private static final String TITLE = "YT Music";
     private static final int DEFAULT_WIDTH = 1280;
     private static final int DEFAULT_HEIGHT = 800;
 
-    private final JFrame frame = new JFrame("YT Music");
+    private final JFrame frame = new JFrame(TITLE);
     private final Path stateFile;
     // getBounds() reports the maximized size while maximized, so track the last normal bounds separately.
     private Rectangle normalBounds;
@@ -88,6 +89,11 @@ final class MainWindow {
         } else {
             showAndFocus();
         }
+    }
+
+    /** Shows the current track in the title bar (and so in the taskbar hover). */
+    void showState(PlaybackState state) {
+        frame.setTitle(state.hasTrack() ? state.label() + " - " + TITLE : TITLE);
     }
 
     void dispose() {

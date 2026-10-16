@@ -6,16 +6,22 @@ import java.awt.PopupMenu;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
 
-/** System tray icon with playback controls. */
+/** System tray icon with playback controls and now-playing info. */
 final class Tray {
 
-    private Tray() {
+    // Windows truncates tray tooltips beyond this.
+    private static final int MAX_TOOLTIP = 127;
+
+    private final TrayIcon icon;
+
+    private Tray(TrayIcon icon) {
+        this.icon = icon;
     }
 
-    /** Adds the tray icon. Returns false if the system has no tray, so the caller can quit on close instead. */
-    static boolean install(MainWindow window, PlayerControls player, Runnable quit) {
+    /** Adds the tray icon. Returns null if the system has no tray, so the caller can quit on close instead. */
+    static Tray install(MainWindow window, PlayerControls player, Runnable quit) {
         if (!SystemTray.isSupported()) {
-            return false;
+            return null;
         }
 
         PopupMenu menu = new PopupMenu();
@@ -33,11 +39,16 @@ final class Tray {
 
         try {
             SystemTray.getSystemTray().add(icon);
-            return true;
+            return new Tray(icon);
         } catch (AWTException e) {
             System.err.println("Could not add tray icon: " + e.getMessage());
-            return false;
+            return null;
         }
+    }
+
+    void showState(PlaybackState state) {
+        String tooltip = state.hasTrack() ? state.label() : "YT Music";
+        icon.setToolTip(tooltip.length() > MAX_TOOLTIP ? tooltip.substring(0, MAX_TOOLTIP - 1) + "…" : tooltip);
     }
 
     private static MenuItem item(String label, Runnable action) {

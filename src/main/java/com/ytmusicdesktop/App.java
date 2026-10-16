@@ -3,6 +3,7 @@ package com.ytmusicdesktop;
 import me.friwi.jcefmaven.CefAppBuilder;
 import me.friwi.jcefmaven.MavenCefAppHandlerAdapter;
 import org.cef.CefApp;
+import org.cef.CefClient;
 import org.cef.CefSettings;
 import org.cef.browser.CefBrowser;
 
@@ -32,7 +33,9 @@ public class App {
         }
 
         CefApp cefApp = createCefApp(appData, profileDir);
-        CefBrowser browser = cefApp.createClient().createBrowser(START_URL, false, false);
+        CefClient client = cefApp.createClient();
+        MediaBridge bridge = new MediaBridge(client, START_URL);
+        CefBrowser browser = client.createBrowser(START_URL, false, false);
 
         SwingUtilities.invokeLater(() -> {
             MainWindow window = new MainWindow(browser.getUIComponent(), appData.resolve("window.properties"));
@@ -45,8 +48,16 @@ public class App {
                 window.dispose();
             };
 
-            boolean inTray = Tray.install(window, player, quit);
-            window.setCloseAction(inTray ? window::hideToTray : quit);
+            Tray tray = Tray.install(window, player, quit);
+            window.setCloseAction(tray != null ? window::hideToTray : quit);
+
+            bridge.setListener(state -> {
+                window.showState(state);
+                if (tray != null) {
+                    tray.showState(state);
+                }
+            });
+
             instance.onActivate(() -> SwingUtilities.invokeLater(window::showAndFocus));
             window.show();
         });
