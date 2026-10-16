@@ -1,0 +1,7 @@
+target/
+jcef-bundle/
+*.log
+.idea/
+*.iml
+.vscode/
+.playwright-mcp/

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.ytmusicdesktop</groupId>
+    <artifactId>ytmusic-desktop</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <name>YT Music Desktop</name>
+
+    <properties>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <jcefmaven.version>152.0.6</jcefmaven.version>
+        <main.class>com.ytmusicdesktop.App</main.class>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>me.friwi</groupId>
+            <artifactId>jcefmaven</artifactId>
+            <version>${jcefmaven.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.16.0</version>
+            </plugin>
+
+            <!-- `mvn compile exec:exec` launches the app in a separate JVM so JVM flags apply. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.6.4</version>
+                <configuration>
+                    <executable>java</executable>
+                    <arguments>
+                        <argument>--enable-native-access=ALL-UNNAMED</argument>
+                        <argument>--add-exports=java.base/java.lang=ALL-UNNAMED</argument>
+                        <argument>--add-exports=java.desktop/sun.awt=ALL-UNNAMED</argument>
+                        <argument>--add-exports=java.desktop/sun.java2d=ALL-UNNAMED</argument>
+                        <argument>-classpath</argument>
+                        <classpath/>
+                        <argument>${main.class}</argument>
+                    </arguments>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
