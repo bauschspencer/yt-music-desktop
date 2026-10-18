@@ -14,6 +14,7 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import java.awt.BorderLayout;
 import java.awt.Desktop;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Frame;
 import java.io.IOException;
@@ -25,6 +26,16 @@ final class SettingsDialog {
     private final JDialog dialog = new JDialog((Frame) null, "YT Music Settings");
 
     SettingsDialog(Settings settings, Path customDir, Runnable reloadPage) {
+        JCheckBox autostart = new JCheckBox("Start with Windows (in the tray)", Autostart.isEnabled());
+        autostart.addActionListener(e -> {
+            Autostart.setEnabled(autostart.isSelected());
+            autostart.setSelected(Autostart.isEnabled()); // Show what actually happened.
+        });
+        autostart.setEnabled(Autostart.isAvailable());
+        JPanel startup = Autostart.isAvailable()
+                ? section("Startup", autostart)
+                : section("Startup", autostart, new JLabel("Only available in the installed app."));
+
         JRadioButton toTray = new JRadioButton("Minimize to tray", settings.closeToTray);
         JRadioButton quit = new JRadioButton("Quit the app", !settings.closeToTray);
         ButtonGroup closeGroup = new ButtonGroup();
@@ -54,6 +65,8 @@ final class SettingsDialog {
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setBorder(BorderFactory.createEmptyBorder(12, 12, 0, 12));
+        content.add(startup);
+        content.add(Box.createVerticalStrut(10));
         content.add(section("When closing the main window", toTray, quit));
         content.add(Box.createVerticalStrut(10));
         content.add(section("Custom CSS/JS", customEnabled,
@@ -98,6 +111,8 @@ final class SettingsDialog {
             row.setAlignmentX(JComponent.LEFT_ALIGNMENT);
             panel.add(row);
         }
+        // Stretch to the dialog's width; sized to its rows alone, a short section cuts off its title.
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, panel.getPreferredSize().height));
         return panel;
     }
 

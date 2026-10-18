@@ -18,6 +18,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
+import javax.swing.Timer;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -32,6 +33,7 @@ import java.awt.RenderingHints;
 import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.awt.image.BaseMultiResolutionImage;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -41,7 +43,8 @@ import java.util.concurrent.ExecutionException;
 
 /**
  * Small always-on-top window with album art, track info and playback buttons.
- * Drag it anywhere to move it; double-click to open the main window; right-click for a menu.
+ * Drag it anywhere to move it; double-click to open the main window; right-click for a menu;
+ * scroll to change the volume.
  */
 final class MiniPlayer {
 
@@ -53,6 +56,8 @@ final class MiniPlayer {
     private static final Color BORDER = new Color(0x333333);
     private static final Color TEXT = Color.WHITE;
     private static final Color SUBTEXT = new Color(0xAAAAAA);
+    private static final Color WARNING = new Color(0xFFB74D);
+    private static final int VOLUME_STEP = 5; // Percentage points per mouse-wheel notch.
     private static final int GLYPH_SIZE = 18;
     private static final Icon PLAY = new GlyphIcon(Glyph.PLAY, GLYPH_SIZE);
     private static final Icon PAUSE = new GlyphIcon(Glyph.PAUSE, GLYPH_SIZE);
@@ -61,9 +66,18 @@ final class MiniPlayer {
     private final JLabel art = new JLabel(placeholderArt());
     private final JLabel title = textLabel(Font.BOLD, 13f, TEXT);
     private final JLabel artist = textLabel(Font.PLAIN, 12f, SUBTEXT);
+    private final JLabel status = textLabel(Font.PLAIN, 11f, SUBTEXT);
     private final JButton playPause;
     private final Path stateFile;
     private String artworkUrl = "";
+    private PlaybackState state;
+    // After a scroll, the status line shows the volume for a moment instead of any warning.
+    private boolean showingVolume;
+    private final Timer volumeShown = new Timer(1500, e -> {
+        showingVolume = false;
+        showStatus();
+    });
+    private double pendingVolumeChange; // Touchpads scroll in fractions of a notch.
 
     MiniPlayer(PlayerControls player, Runnable showMainWindow, Path stateFile) {
         this.stateFile = stateFile;
@@ -79,7 +93,10 @@ final class MiniPlayer {
         controls.add(button(new GlyphIcon(Glyph.PREVIOUS, GLYPH_SIZE), player::previous));
         controls.add(playPause);
         controls.add(button(new GlyphIcon(Glyph.NEXT, GLYPH_SIZE), player::next));
+        controls.add(Box.createHorizontalStrut(8));
+        controls.add(status);
         alignLeft(controls);
+        volumeShown.setRepeats(false);
 
         JPanel info = new JPanel();
         info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
@@ -100,6 +117,7 @@ final class MiniPlayer {
         frame.setSize(WIDTH, HEIGHT);
 
         installMouseHandling(content, showMainWindow);
+        content.addMouseWheelListener(e -> changeVolume(e, player));
         showState(null);
         restoreBounds();
     }
@@ -121,11 +139,13 @@ final class MiniPlayer {
     }
 
     void showState(PlaybackState state) {
+        this.state = state;
         boolean hasTrack = state != null && state.hasTrack();
         title.setText(hasTrack ? state.title() : "Nothing playing");
         artist.setText(hasTrack ? state.artist() : " ");
         playPause.setIcon(hasTrack && state.playing() ? PAUSE : PLAY);
         loadArt(hasTrack ? state.artworkUrl() : "");
+        showStatus();
     }
 
     void saveState() {
@@ -134,6 +154,33 @@ final class MiniPlayer {
 
     void dispose() {
         frame.dispose();
+    }
+
+    private void changeVolume(MouseWheelEvent e, PlayerControls player) {
+        // Wheel up (negative rotation) turns the volume up.
+        pendingVolumeChange -= e.getPreciseWheelRotation() * VOLUME_STEP;
+        int change = (int) pendingVolumeChange;
+        if (change == 0) {
+            return;
+        }
+        pendingVolumeChange -= change;
+        player.changeVolume(change);
+        showingVolume = true;
+        volumeShown.restart();
+        showStatus();
+    }
+
+    /** The line beside the buttons: the volume just after a scroll, else a warning if the controls broke. */
+    private void showStatus() {
+        if (showingVolume && state != null && state.volume() >= 0) {
+            status.setText(state.volume() == 0 ? "Muted" : "Volume " + state.volume() + "%");
+            status.setForeground(SUBTEXT);
+        } else if (state != null && !state.controlsAvailable()) {
+            status.setText(PlaybackState.CONTROLS_UNAVAILABLE);
+            status.setForeground(WARNING);
+        } else {
+            status.setText(" ");
+        }
     }
 
     private void hide() {

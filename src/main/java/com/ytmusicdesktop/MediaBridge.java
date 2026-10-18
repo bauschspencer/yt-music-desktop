@@ -23,19 +23,27 @@ import java.util.function.Consumer;
 final class MediaBridge {
 
     private static final String PREFIX = "ytmd-state:";
+    private static final String COMMAND_PREFIX = "ytmd-cmd:";
 
     private final Gson gson = new Gson();
     private final String script;
     private Consumer<PlaybackState> listener = state -> {};
+    private Consumer<String> commandListener = command -> {};
 
     MediaBridge(CefClient client) {
-        script = loadScript().replace("__PREFIX__", PREFIX);
+        script = loadScript().replace("__PREFIX__", PREFIX).replace("__COMMAND_PREFIX__", COMMAND_PREFIX);
 
         CefMessageRouter router = CefMessageRouter.create();
         router.addHandler(new CefMessageRouterHandlerAdapter() {
             @Override
             public boolean onQuery(CefBrowser browser, CefFrame frame, long queryId, String request,
                                    boolean persistent, CefQueryCallback callback) {
+                if (request.startsWith(COMMAND_PREFIX)) {
+                    callback.success("");
+                    String command = request.substring(COMMAND_PREFIX.length());
+                    SwingUtilities.invokeLater(() -> commandListener.accept(command));
+                    return true;
+                }
                 if (!request.startsWith(PREFIX)) {
                     return false;
                 }
@@ -60,6 +68,11 @@ final class MediaBridge {
     /** Called on the Swing thread whenever the playback state changes. */
     void setListener(Consumer<PlaybackState> listener) {
         this.listener = listener;
+    }
+
+    /** Called on the Swing thread with a command from the buttons bridge.js adds to the page. */
+    void setCommandListener(Consumer<String> listener) {
+        this.commandListener = listener;
     }
 
     private static String loadScript() {

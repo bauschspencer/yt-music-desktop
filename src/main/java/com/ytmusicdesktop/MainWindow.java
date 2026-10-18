@@ -50,6 +50,16 @@ final class MainWindow {
         restoreState();
     }
 
+    /** The frame itself, for native integrations (taskbar buttons). */
+    Frame frame() {
+        return frame;
+    }
+
+    /** Creates the native window without showing it, so it can be set up before it first appears. */
+    void realize() {
+        frame.addNotify();
+    }
+
     void setCloseAction(Runnable action) {
         closeAction = action;
     }

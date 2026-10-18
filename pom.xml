@@ -7,11 +7,12 @@
     <groupId>com.ytmusicdesktop</groupId>
     <artifactId>ytmusic-desktop</artifactId>
     <!-- Installers only upgrade an existing install when this increases (numeric x.y.z only). -->
-    <version>0.4.0</version>
+    <version>0.5.0</version>
     <name>YT Music Desktop</name>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
+        <!-- 22+ for the Foreign Function & Memory API (taskbar buttons, registry). -->
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jcefmaven.version>152.0.6</jcefmaven.version>
         <main.class>com.ytmusicdesktop.App</main.class>
@@ -32,6 +33,22 @@
 
     <build>
         <finalName>ytmusic-desktop</finalName>
+        <resources>
+            <!-- version.properties gets the pom version filled in; nothing else is filtered. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>version.properties</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <excludes>
+                    <exclude>version.properties</exclude>
+                </excludes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
