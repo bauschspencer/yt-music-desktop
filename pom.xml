@@ -7,14 +7,19 @@
     <groupId>com.ytmusicdesktop</groupId>
     <artifactId>ytmusic-desktop</artifactId>
     <!-- Installers only upgrade an existing install when this increases (numeric x.y.z only). -->
-    <version>0.5.0</version>
+    <version>0.5.1</version>
     <name>YT Music Desktop</name>
 
     <properties>
         <!-- 22+ for the Foreign Function & Memory API (taskbar buttons, registry). -->
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!--
+            Chromium: update both together (see "Updating Chromium" in SCOPE.md). jcef.version is
+            the jcef-api version that jcefmaven depends on, which names the matching natives.
+        -->
         <jcefmaven.version>152.0.6</jcefmaven.version>
+        <jcef.version>jcef-17e805a+cef-152.0.6+g708dc14+chromium-152.0.7977.83</jcef.version>
         <main.class>com.ytmusicdesktop.App</main.class>
     </properties>
 
@@ -23,6 +28,16 @@
             <groupId>me.friwi</groupId>
             <artifactId>jcefmaven</artifactId>
             <version>${jcefmaven.version}</version>
+        </dependency>
+        <!--
+            Chromium itself (a 170 MB jar holding a .tar.gz), unpacked into the app image at build
+            time so the app never downloads it. Provided: the jar itself isn't shipped.
+        -->
+        <dependency>
+            <groupId>me.friwi</groupId>
+            <artifactId>jcef-natives-windows-amd64</artifactId>
+            <version>${jcef.version}</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
@@ -54,6 +69,38 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.16.0</version>
+            </plugin>
+
+            <!--
+                Before anything else (validate phase), checks the PGP signature on every dependency,
+                Chromium's jar included, against the keys pinned in pgp-keys.list. Central's checksums
+                come from the same server as the files, so only a signature, which needs the
+                publisher's private key, shows a file wasn't replaced there or on the way. A dependency
+                that isn't listed fails the build; see "Updating Chromium" in SCOPE.md.
+            -->
+            <plugin>
+                <groupId>org.simplify4u.plugins</groupId>
+                <artifactId>pgpverify-maven-plugin</artifactId>
+                <version>1.19.1</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <keysMapLocations>
+                        <keysMapLocation>${project.basedir}/src/main/packaging/pgp-keys.list</keysMapLocation>
+                    </keysMapLocations>
+                    <!-- The Chromium jar is a provided dependency, which isn't checked by default. -->
+                    <verifyProvidedDependencies>true</verifyProvidedDependencies>
+                    <!--
+                        Check every time (under a second). The plugin otherwise skips artifacts it
+                        passed before, even after a key is changed in pgp-keys.list.
+                    -->
+                    <disableChecksum>true</disableChecksum>
+                </configuration>
             </plugin>
 
             <!-- Packaging: gather the app jar and its dependencies into target/app for jpackage. -->
@@ -116,9 +163,12 @@
                     <execution>
                         <id>default-cli</id>
                         <configuration>
+                            <!-- Compile scope includes the natives jar, which a dev run unpacks Chromium from. -->
+                            <classpathScope>compile</classpathScope>
                             <executable>java</executable>
                             <arguments>
                                 <!-- Keep in sync with the jpackage java-options below. -->
+                                <argument>-XX:+DisableAttachMechanism</argument>
                                 <argument>--enable-native-access=ALL-UNNAMED</argument>
                                 <argument>--add-exports=java.base/java.lang=ALL-UNNAMED</argument>
                                 <argument>--add-exports=java.desktop/sun.awt=ALL-UNNAMED</argument>
@@ -126,6 +176,28 @@
                                 <argument>-classpath</argument>
                                 <classpath/>
                                 <argument>${main.class}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <!--
+                        Unpacks Chromium into target/app/jcef-bundle, which jpackage copies into the
+                        image as app/jcef-bundle; the installed app loads it from there. Skipped when
+                        the folder already holds this version.
+                    -->
+                    <execution>
+                        <id>bundle-natives</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <classpathScope>compile</classpathScope>
+                            <executable>${java.home}/bin/java</executable>
+                            <arguments>
+                                <argument>-classpath</argument>
+                                <classpath/>
+                                <argument>${project.basedir}/src/main/packaging/BundleNatives.java</argument>
+                                <argument>${project.build.directory}/app/jcef-bundle</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -153,6 +225,13 @@
                                 <argument>${project.build.finalName}.jar</argument>
                                 <argument>--main-class</argument>
                                 <argument>${main.class}</argument>
+                                <!--
+                                    No attaching to the running app (jcmd, a -javaagent loaded later):
+                                    another process running as the user could otherwise read the
+                                    signed-in session out of its memory.
+                                -->
+                                <argument>--java-options</argument>
+                                <argument>-XX:+DisableAttachMechanism</argument>
                                 <argument>--java-options</argument>
                                 <argument>--enable-native-access=ALL-UNNAMED</argument>
                                 <argument>--java-options</argument>

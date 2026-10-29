@@ -1,0 +1,27 @@
+# Who may sign each dependency (pgpverify-maven-plugin, see pom.xml). Every dependency must be
+# listed: a new one, or a release signed with a different key, fails the build until it's added here.
+#
+# Before adding a key, check it belongs to the project, not just to a matching name: anyone can make
+# a key with any name on it. See "Updating Chromium" in SCOPE.md.
+
+# jcefmaven and Chromium (jcef-api, jcef-natives-*): Fritz Windisch's release key since jcefmaven
+# 146.0.10. jcefmaven switched keys on 2026-05-05 in a signed commit by its maintainer ("Update GPG
+# private key", 67099e3 in jcefmaven/jcefmaven), 18 minutes before that release; 141.0.10 and
+# earlier were signed with the 2021 key below.
+me.friwi:jcefmaven                  = 0xAB89 4142 CD86 07B7 074E  912A B2AE 8D1D 31A0 113A
+me.friwi:jcef-api                   = 0xAB89 4142 CD86 07B7 074E  912A B2AE 8D1D 31A0 113A
+me.friwi:jcef-natives-windows-amd64 = 0xAB89 4142 CD86 07B7 074E  912A B2AE 8D1D 31A0 113A
+
+# JOGL and GlueGen v2.4.0, republished by jcefmaven in 2021 and signed with its earlier key.
+me.friwi:jogl-all                   = 0xEED2 9BAB 8D4F D882 D623  08CD 72D1 B04B C7E6 AA04
+me.friwi:gluegen-rt                 = 0xEED2 9BAB 8D4F D882 D623  08CD 72D1 B04B C7E6 AA04
+
+# Apache Commons, which jcefmaven uses to unpack Chromium: Gary Gregory, the release manager.
+org.apache.commons:commons-compress = 0x2DB4 F1EF 0FA7 61EC C4EA  935C 86FD C7E2 A112 62CB
+org.apache.commons:commons-lang3    = 0x2DB4 F1EF 0FA7 61EC C4EA  935C 86FD C7E2 A112 62CB
+commons-codec:commons-codec         = 0x2DB4 F1EF 0FA7 61EC C4EA  935C 86FD C7E2 A112 62CB
+commons-io:commons-io               = 0x2DB4 F1EF 0FA7 61EC C4EA  935C 86FD C7E2 A112 62CB
+
+# Gson: Éamonn McManus (Google). Error Prone annotations, which Gson uses: Liam Miller-Cushon (Google).
+com.google.code.gson:gson                      = 0xC7BE 5BCC 9FEC 1551 8CFD  A882 B0F3 710F A649 00E7
+com.google.errorprone:error_prone_annotations  = 0xEE0C A873 0740 92F8 06F5  9B65 D364 ABAA 39A4 7320

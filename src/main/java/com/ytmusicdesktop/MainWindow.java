@@ -3,6 +3,7 @@ package com.ytmusicdesktop;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Frame;
 import java.awt.Rectangle;
@@ -11,6 +12,7 @@ import java.awt.event.ComponentEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 /** The app's main frame, with show/hide-to-tray behavior and saved size/position. */
 final class MainWindow {
@@ -24,11 +26,19 @@ final class MainWindow {
     // getBounds() reports the maximized size while maximized, so track the last normal bounds separately.
     private Rectangle normalBounds;
     private Runnable closeAction = () -> {};
+    private Consumer<Boolean> trayListener = hidden -> {};
+    private PlaybackState state;
+    private String connection = "";
 
     MainWindow(Component browserUi, Path stateFile) {
         this.stateFile = stateFile;
         frame.setIconImages(Icons.appIcons());
         frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        // Dark behind the browser too, so nothing flashes white before the page paints.
+        Color background = new Color(App.BACKGROUND_RGB);
+        frame.setBackground(background);
+        frame.getContentPane().setBackground(background);
+        browserUi.setBackground(background);
         frame.getContentPane().add(browserUi, BorderLayout.CENTER);
         frame.addWindowListener(new WindowAdapter() {
             @Override
@@ -64,17 +74,25 @@ final class MainWindow {
         closeAction = action;
     }
 
+    /** Called with true when the window hides to the tray, and false when it's shown again. */
+    void setTrayListener(Consumer<Boolean> listener) {
+        trayListener = listener;
+    }
+
     void show() {
         frame.setVisible(true);
+        trayListener.accept(false);
     }
 
     void hideToTray() {
         saveState();
         frame.setVisible(false);
+        trayListener.accept(true);
     }
 
     void showAndFocus() {
         frame.setVisible(true);
+        trayListener.accept(false);
         if ((frame.getExtendedState() & Frame.ICONIFIED) != 0) {
             frame.setExtendedState(frame.getExtendedState() & ~Frame.ICONIFIED);
         }
@@ -96,7 +114,14 @@ final class MainWindow {
 
     /** Shows the current track in the title bar (and so in the taskbar hover). */
     void showState(PlaybackState state) {
-        frame.setTitle(state.hasTrack() ? state.label() + " - " + TITLE : TITLE);
+        this.state = state;
+        updateTitle();
+    }
+
+    /** Shows a page problem ("" when there is none) in the title bar instead of the track. */
+    void showConnection(String status) {
+        connection = status;
+        updateTitle();
     }
 
     void dispose() {
@@ -119,6 +144,19 @@ final class MainWindow {
 
         if (saved != null && saved.maximized()) {
             frame.setExtendedState(Frame.MAXIMIZED_BOTH);
+        }
+    }
+
+    private void updateTitle() {
+        String title = TITLE;
+        if (!connection.isEmpty()) {
+            title = TITLE + " (" + connection + ")";
+        } else if (state != null && state.hasTrack()) {
+            title = state.label() + " - " + TITLE;
+        }
+        // Playback updates arrive every second while playing; skip the native call when nothing changed.
+        if (!title.equals(frame.getTitle())) {
+            frame.setTitle(title);
         }
     }
 

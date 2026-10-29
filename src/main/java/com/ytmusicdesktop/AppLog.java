@@ -17,6 +17,10 @@ import java.time.temporal.ChronoUnit;
  */
 final class AppLog {
 
+    private static OutputStream logFile;
+    private static PrintStream consoleOut;
+    private static PrintStream consoleErr;
+
     private AppLog() {
     }
 
@@ -27,13 +31,30 @@ final class AppLog {
             if (Files.exists(log)) {
                 Files.move(log, dir.resolve("app.log.1"), StandardCopyOption.REPLACE_EXISTING);
             }
-            OutputStream file = new FileOutputStream(log.toFile());
-            System.setOut(tee(System.out, file));
-            System.setErr(tee(System.err, file));
+            logFile = new FileOutputStream(log.toFile());
+            consoleOut = System.out;
+            consoleErr = System.err;
+            System.setOut(tee(System.out, logFile));
+            System.setErr(tee(System.err, logFile));
         } catch (IOException e) {
             System.err.println("Could not open " + log + ": " + e.getMessage());
         }
         System.out.println("YT Music " + version + " started " + LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS));
+    }
+
+    /** Stops writing to app.log and closes it, so it can be deleted. Output still reaches the console. */
+    static void stop() {
+        if (logFile == null) {
+            return;
+        }
+        System.setOut(consoleOut);
+        System.setErr(consoleErr);
+        try {
+            logFile.close();
+        } catch (IOException e) {
+            System.err.println("Could not close app.log: " + e.getMessage());
+        }
+        logFile = null;
     }
 
     /** Writes to both the console (still useful in dev) and the log file. */

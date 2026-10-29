@@ -13,6 +13,13 @@
     previous: 'ytmusic-player-bar .previous-button',
   };
   const VOLUME_SLIDER = 'ytmusic-player-bar #volume-slider';
+  // Like/dislike: the renderer's like-status attribute is LIKE, DISLIKE or INDIFFERENT. Not part of
+  // the BUTTONS health check; a missing renderer is reported as an empty likeStatus instead.
+  const LIKE_RENDERER = 'ytmusic-player-bar ytmusic-like-button-renderer';
+  const RATING_BUTTONS = {
+    like: '.like-button-wrapper button', // Inside a wrapper div...
+    dislike: ':scope > yt-button-shape button', // ...while the dislike button sits directly under the renderer.
+  };
   // Polls in a row the buttons must be missing before reporting it, so a slow first render doesn't count.
   const MISSING_POLLS = 5;
   // "Pause at end of track" fires this many seconds early, so the next track doesn't start first.
@@ -37,6 +44,14 @@
     return md ? md.title + '\n' + md.artist : '';
   };
 
+  // The track's ID, from the player (which knows it even during an ad) or the address bar.
+  function videoId() {
+    const data = player()?.getVideoData?.();
+    return (data && data.video_id) || new URLSearchParams(location.search).get('v') || '';
+  }
+
+  const likeStatus = () => document.querySelector(LIKE_RENDERER)?.getAttribute('like-status') || '';
+
   // The volume as YT Music's own slider shows it (0 when muted).
   function volume() {
     const slider = document.querySelector(VOLUME_SLIDER);
@@ -56,10 +71,14 @@
       album: md ? md.album : '',
       artworkUrl: artwork,
       duration: v && isFinite(v.duration) ? v.duration : 0,
+      // Whole seconds, so a playing track changes the report once a second at most.
+      currentTime: v && isFinite(v.currentTime) ? Math.floor(v.currentTime) : 0,
       playing: !!v && !v.paused,
       volume: volume(),
       controlsAvailable: missingPolls < MISSING_POLLS,
       pauseAtTrackEnd,
+      videoId: md ? videoId() : '',
+      likeStatus: md ? likeStatus() : '',
     });
     if (json !== last) {
       last = json;
@@ -70,6 +89,36 @@
   function pause() {
     const v = video();
     if (v && !v.paused) click('playPause');
+  }
+
+  function play() {
+    const v = video();
+    if (v && v.paused) click('playPause');
+  }
+
+  /**
+   * Sets the volume (0-100) as if the user moved YT Music's slider, so its UI and saved volume stay
+   * in step (it maps the slider onto the player's volume on a curve, and unmutes).
+   * #movie_player.setVolume() alone would leave the slider stale, so it's only the fallback if the
+   * slider can't be found.
+   */
+  function setVolume(value) {
+    const level = Math.max(0, Math.min(100, Math.round(value)));
+    const slider = document.querySelector(VOLUME_SLIDER);
+    const p = player();
+    if (slider) {
+      slider.value = level;
+      slider.dispatchEvent(new CustomEvent('change'));
+    } else if (p && p.setVolume) {
+      p.setVolume(level);
+      if (level > 0 && p.isMuted()) p.unMute();
+    }
+    report();
+  }
+
+  function rate(name) {
+    document.querySelector(LIKE_RENDERER)?.querySelector(RATING_BUTTONS[name])?.click();
+    report();
   }
 
   // Pauses once the armed track is about to end, or has stopped being the current track
@@ -257,30 +306,37 @@
   document.addEventListener('click', closeMenu);
   document.addEventListener('keydown', e => e.key === 'Escape' && closeMenu());
 
+  // --- Navigation and zoom shortcuts the embedded browser lacks (Ctrl+wheel zoom it has) -------
+  const ZOOM_KEYS = { '=': 'in', '+': 'in', '-': 'out', '0': 'reset' };
+  window.addEventListener('keydown', e => {
+    if (e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.key === 'ArrowLeft') history.back();
+      else history.forward();
+    } else if (e.ctrlKey && !e.altKey && !e.metaKey && ZOOM_KEYS[e.key]) {
+      e.preventDefault();
+      e.stopPropagation();
+      sendCommand('zoom:' + ZOOM_KEYS[e.key]); // Java zooms; Chromium remembers it for the site.
+    }
+  }, true);
+  document.addEventListener('mouseup', e => {
+    if (e.button === 3) history.back();
+    else if (e.button === 4) history.forward();
+  });
+
   window.__ytmd = {
     playPause: () => click('playPause'),
     next: () => click('next'),
     previous: () => click('previous'),
     pause,
-    /**
-     * Changes the volume by delta (percentage points) as if the user moved YT Music's slider, so
-     * its UI and saved volume stay in step (it maps the slider onto the player's volume on a
-     * curve, and unmutes). #movie_player.setVolume() alone would leave the slider stale, so it's
-     * only the fallback if the slider can't be found.
-     */
-    changeVolume(delta) {
-      const clamp = v => Math.max(0, Math.min(100, Math.round(v)));
-      const slider = document.querySelector(VOLUME_SLIDER);
-      const p = player();
-      if (slider) {
-        slider.value = clamp(slider.value + delta);
-        slider.dispatchEvent(new CustomEvent('change'));
-      } else if (p && p.setVolume) {
-        p.setVolume(clamp(p.getVolume() + delta));
-        if (delta > 0 && p.isMuted()) p.unMute();
-      }
-      report();
-    },
+    play,
+    setVolume,
+    /** Changes the volume by delta (percentage points); see setVolume. */
+    changeVolume: delta => setVolume(Math.max(0, volume()) + delta),
+    /** Clicks YT Music's like (or dislike) button, which also takes the rating back if it's set. */
+    like: () => rate('like'),
+    dislike: () => rate('dislike'),
     pauseAtTrackEnd(on) {
       pauseAtTrackEnd = on;
       armedTrack = trackKey();

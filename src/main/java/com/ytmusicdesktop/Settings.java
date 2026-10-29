@@ -16,8 +16,10 @@ final class Settings {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     boolean closeToTray = true;
-    // Read from the CEF thread on page load; written from the Swing thread.
-    volatile boolean customCodeEnabled = true;
+    boolean pauseOnLock = false;
+    boolean resumeOnUnlock = false;
+    boolean miniPlayerOnTop = true;
+    boolean miniPlayerWithTray = false;
 
     private transient Path file;
 

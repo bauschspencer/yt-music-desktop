@@ -29,6 +29,7 @@ final class MediaBridge {
     private final String script;
     private Consumer<PlaybackState> listener = state -> {};
     private Consumer<String> commandListener = command -> {};
+    private volatile boolean loggedRejection;
 
     MediaBridge(CefClient client) {
         script = loadScript().replace("__PREFIX__", PREFIX).replace("__COMMAND_PREFIX__", COMMAND_PREFIX);
@@ -38,6 +39,15 @@ final class MediaBridge {
             @Override
             public boolean onQuery(CefBrowser browser, CefFrame frame, long queryId, String request,
                                    boolean persistent, CefQueryCallback callback) {
+                // CEF gives window.cefQuery to every frame of every page, ads' iframes included;
+                // only the YT Music page bridge.js runs in may talk to the app.
+                if (frame == null || !frame.isMain() || !UrlPolicy.isYtMusic(frame.getURL())) {
+                    if (!loggedRejection) {
+                        loggedRejection = true;
+                        System.err.println("Ignoring bridge messages from " + (frame == null ? "(no frame)" : frame.getURL()));
+                    }
+                    return false;
+                }
                 if (request.startsWith(COMMAND_PREFIX)) {
                     callback.success("");
                     String command = request.substring(COMMAND_PREFIX.length());

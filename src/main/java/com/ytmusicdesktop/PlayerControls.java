@@ -32,9 +32,29 @@ final class PlayerControls {
         call("pause()");
     }
 
+    /** Starts playback if paused; unlike {@link #playPause()} it never pauses. */
+    void play() {
+        call("play()");
+    }
+
     /** Changes the volume by {@code delta} percentage points (negative to lower it). */
     void changeVolume(int delta) {
         call("changeVolume(" + delta + ")");
+    }
+
+    /** Sets the volume, 0-100. */
+    void setVolume(int volume) {
+        call("setVolume(" + volume + ")");
+    }
+
+    /** Likes the track, or takes the like back if it's already liked. */
+    void like() {
+        call("like()");
+    }
+
+    /** Dislikes the track, or takes the dislike back. */
+    void dislike() {
+        call("dislike()");
     }
 
     /** Arms (or disarms) a pause just before the current track ends. */

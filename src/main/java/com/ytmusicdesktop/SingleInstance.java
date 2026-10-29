@@ -16,7 +16,10 @@ import java.nio.file.StandardOpenOption;
  */
 final class SingleInstance {
 
-    // Never read; held so the lock isn't released when the channel is garbage-collected.
+    static final String LOCK_FILE = "instance.lock";
+    static final String PORT_FILE = "instance.port";
+
+    // Held so the lock isn't released when the channel is garbage-collected.
     private final FileChannel lockChannel;
     private final FileLock lock;
     private final ServerSocket server;
@@ -33,18 +36,17 @@ final class SingleInstance {
      * running (in which case it has been asked to show itself).
      */
     static SingleInstance acquire(Path dir) throws IOException {
-        Path portFile = dir.resolve("instance.port");
-        FileChannel channel = FileChannel.open(dir.resolve("instance.lock"),
+        FileChannel channel = FileChannel.open(dir.resolve(LOCK_FILE),
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         FileLock lock = channel.tryLock();
         if (lock == null) {
             channel.close();
-            signalRunningInstance(portFile);
+            signal(dir);
             return null;
         }
 
         ServerSocket server = new ServerSocket(0, 10, InetAddress.getLoopbackAddress());
-        Files.writeString(portFile, Integer.toString(server.getLocalPort()));
+        Files.writeString(dir.resolve(PORT_FILE), Integer.toString(server.getLocalPort()));
 
         SingleInstance instance = new SingleInstance(channel, lock, server);
         // The listener thread keeps this object (and so the file lock) reachable for the JVM's lifetime.
@@ -59,6 +61,17 @@ final class SingleInstance {
         onActivate = action;
     }
 
+    /** Stops listening and lets go of the lock, so the lock file can be deleted. */
+    void release() {
+        try {
+            server.close();
+            lock.release();
+            lockChannel.close();
+        } catch (IOException e) {
+            System.err.println("Could not release the single-instance lock: " + e.getMessage());
+        }
+    }
+
     private void acceptLoop() {
         while (true) {
             try (Socket ignored = server.accept()) {
@@ -69,9 +82,10 @@ final class SingleInstance {
         }
     }
 
-    private static void signalRunningInstance(Path portFile) {
+    /** Asks the instance whose lock is in {@code dir} to show its window. */
+    static void signal(Path dir) {
         try {
-            int port = Integer.parseInt(Files.readString(portFile).trim());
+            int port = Integer.parseInt(Files.readString(dir.resolve(PORT_FILE)).trim());
             new Socket(InetAddress.getLoopbackAddress(), port).close();
         } catch (IOException | NumberFormatException e) {
             System.err.println("Another instance is running but could not be reached: " + e.getMessage());

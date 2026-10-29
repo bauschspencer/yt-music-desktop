@@ -1,0 +1,9 @@
+# Proposes updates to the SHA-pinned actions in .github/workflows/release.yml.
+# (jcefmaven isn't listed: a Chromium update also needs the natives version and user-agent
+# changed with it, see "Updating Chromium" in SCOPE.md.)
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

@@ -18,14 +18,19 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Frame;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Path;
 
 /** Settings window, opened from the tray. Changes apply and save immediately. */
 final class SettingsDialog {
 
     private final JDialog dialog = new JDialog((Frame) null, "YT Music Settings");
+    private final JLabel updateStatus = new JLabel("Updates: checking...");
+    private final JButton releasePage = new JButton("Open release page");
+    private URI releasePageUri;
 
-    SettingsDialog(Settings settings, Path customDir, Runnable reloadPage) {
+    /** {@code dataFolder} is opened by "Open data folder"; {@code deleteData} signs out, quits and deletes it all. */
+    SettingsDialog(Settings settings, Path dataFolder, Runnable deleteData) {
         JCheckBox autostart = new JCheckBox("Start with Windows (in the tray)", Autostart.isEnabled());
         autostart.addActionListener(e -> {
             Autostart.setEnabled(autostart.isSelected());
@@ -50,17 +55,33 @@ final class SettingsDialog {
             settings.save();
         });
 
-        JCheckBox customEnabled = new JCheckBox("Load .css and .js files from the custom folder",
-                settings.customCodeEnabled);
-        customEnabled.addActionListener(e -> {
-            settings.customCodeEnabled = customEnabled.isSelected();
+        JCheckBox pauseOnLock = new JCheckBox("Pause when the PC locks", settings.pauseOnLock);
+        JCheckBox resumeOnUnlock = new JCheckBox("Resume when unlocked", settings.resumeOnUnlock);
+        resumeOnUnlock.setBorder(BorderFactory.createEmptyBorder(2, 22, 2, 2)); // Indented under the first.
+        resumeOnUnlock.setEnabled(settings.pauseOnLock);
+        pauseOnLock.addActionListener(e -> {
+            settings.pauseOnLock = pauseOnLock.isSelected();
+            settings.save();
+            resumeOnUnlock.setEnabled(settings.pauseOnLock);
+        });
+        resumeOnUnlock.addActionListener(e -> {
+            settings.resumeOnUnlock = resumeOnUnlock.isSelected();
             settings.save();
         });
-        JButton openFolder = new JButton("Open folder");
-        openFolder.addActionListener(e -> openFolder(customDir));
-        JButton reload = new JButton("Reload page");
-        reload.addActionListener(e -> reloadPage.run());
-        JPanel customButtons = row(openFolder, reload);
+
+        JButton signOut = new JButton("Sign out and delete local data...");
+        signOut.addActionListener(e -> {
+            if (confirmDeleteData()) {
+                signOut.setEnabled(false);
+                dialog.setVisible(false);
+                deleteData.run();
+            }
+        });
+
+        JButton openData = new JButton("Open data folder");
+        openData.addActionListener(e -> openFolder(dataFolder));
+        releasePage.addActionListener(e -> openReleasePage());
+        releasePage.setVisible(false);
 
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
@@ -69,8 +90,13 @@ final class SettingsDialog {
         content.add(Box.createVerticalStrut(10));
         content.add(section("When closing the main window", toTray, quit));
         content.add(Box.createVerticalStrut(10));
-        content.add(section("Custom CSS/JS", customEnabled,
-                new JLabel("Changes take effect after reloading the page."), customButtons));
+        content.add(section("Playback", pauseOnLock, resumeOnUnlock));
+        content.add(Box.createVerticalStrut(10));
+        content.add(section("Sign-in and data",
+                new JLabel("Removes your sign-in and everything else this app keeps on this PC."), row(signOut)));
+        content.add(Box.createVerticalStrut(10));
+        content.add(section("About", new JLabel("YT Music Desktop " + App.VERSION), updateStatus,
+                row(openData, releasePage)));
 
         JButton close = new JButton("Close");
         close.addActionListener(e -> dialog.setVisible(false));
@@ -89,6 +115,34 @@ final class SettingsDialog {
     void show() {
         dialog.setVisible(true);
         dialog.toFront();
+    }
+
+    /** Shows the startup update check's result in the About section. */
+    void showUpdateResult(UpdateCheck.Result result) {
+        updateStatus.setText("Updates: " + result.summary());
+        releasePageUri = result.page();
+        releasePage.setVisible(releasePageUri != null);
+        dialog.pack();
+    }
+
+    private void openReleasePage() {
+        try {
+            Desktop.getDesktop().browse(releasePageUri);
+        } catch (IOException e) {
+            System.err.println("Could not open " + releasePageUri + ": " + e.getMessage());
+        }
+    }
+
+    private boolean confirmDeleteData() {
+        String[] options = {"Sign out and delete", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(dialog,
+                "YT Music will sign out of Google, delete everything it keeps on this PC (your sign-in,\n"
+                        + "cache, settings, window positions and log), turn off Start with Windows, and quit.\n\n"
+                        + "Your Google account, library and playlists aren't affected. To remove the app itself\n"
+                        + "as well, uninstall it afterwards from Settings > Apps > Installed apps.",
+                "Sign out and delete local data", JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE,
+                null, options, options[1]);
+        return choice == 0;
     }
 
     private void openFolder(Path dir) {
