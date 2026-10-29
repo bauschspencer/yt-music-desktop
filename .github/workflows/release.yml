@@ -5,8 +5,9 @@
 # Supply-chain hygiene: actions are pinned to commit SHAs (Dependabot proposes updates), the build
 # checks every dependency's PGP signature against src/main/packaging/pgp-keys.list (see pom.xml),
 # the build job only gets a read-only token, and the release job, which runs no build code,
-# publishes the .msi with a SHA-256 checksum and a signed build-provenance attestation. Anyone can
-# check that an installer was built here from this repo's source with:
+# publishes the .msi with a signed build-provenance attestation (GitHub lists each asset's SHA-256
+# on the release page itself). Anyone can check that an installer was built here from this repo's
+# source with:
 #   gh attestation verify "YT.Music-<version>.msi" --repo bauschspencer/yt-music-desktop
 name: Release
 
@@ -81,8 +82,8 @@ jobs:
           name: YT-Music-installer
           path: installer
 
-      # GitHub replaces spaces in asset names with dots; rename first, so SHA256SUMS.txt and the
-      # attestation name the file people actually download (YT.Music-<version>.msi).
+      # GitHub replaces spaces in asset names with dots; rename first, so the attestation names the
+      # file people actually download (YT.Music-<version>.msi).
       - name: Name the installer as GitHub will
         working-directory: installer
         run: for f in *.msi; do [ "$f" = "${f// /.}" ] || mv -- "$f" "${f// /.}"; done
@@ -96,6 +97,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-        run: |
-          sha256sum *.msi > SHA256SUMS.txt
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes *.msi SHA256SUMS.txt
+        run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes *.msi

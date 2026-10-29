@@ -186,7 +186,7 @@ Security review fixes (2026-10-28):
   it, so no unverified Chromium lands in (or runs from) the user's profile
 - [x] **Release workflow:** actions pinned to commit SHAs (Dependabot updates them), the tag name
   passed through `env:`, a read-only build job, and a separate release job that publishes the
-  `.msi` with `SHA256SUMS.txt` and a build-provenance attestation (`gh release` instead of a
+  `.msi` with a build-provenance attestation (`gh release` instead of a
   third-party action)
 - [x] **Custom CSS/JS removed** (see v0.3)
 
@@ -218,7 +218,10 @@ For running on a work laptop (2026-10-28):
   `--log-net-log` in a dev run with a fresh profile; re-measure if the app starts talking to
   something new
 - [x] **Release asset name:** GitHub turns `YT Music-x.y.z.msi` into `YT.Music-x.y.z.msi`, so the
-  release job renames it first and `SHA256SUMS.txt` matches the download
+  release job renames it first and the attestation names the file people download
+- [x] **No `SHA256SUMS.txt`** after 0.5.1: GitHub already shows each asset's SHA-256 on the release
+  page (and in the API as `digest`), and a checksum served beside the file can't show who built it;
+  the attestation does that
 
 Waiting on others:
 - [ ] **Per-machine `.msi`** (Program Files, for Intune/SCCM): ask IT whether they want it. It

@@ -87,16 +87,18 @@ host; YouTube may add hosts over time.
 ## Verifying a download
 
 From 0.5.1, each [GitHub release](https://github.com/bauschspencer/yt-music-desktop/releases)
-includes the `.msi`, `SHA256SUMS.txt` and a build-provenance attestation, which shows the `.msi` was
-built from this repository's source by its GitHub Actions release workflow. With the GitHub CLI:
+has a build-provenance attestation for its `.msi`, which shows the file was built from this
+repository's source by its GitHub Actions release workflow. With the GitHub CLI:
 
 ```
 gh attestation verify "YT.Music-0.5.1.msi" --repo bauschspencer/yt-music-desktop
 ```
 
-To compare the checksum instead, run `(Get-FileHash "YT.Music-0.5.1.msi").Hash` in PowerShell and
-check it against `SHA256SUMS.txt`. The build also checks the PGP signature of every library it
-bundles, Chromium included, against each publisher's pinned key.
+For a quick check that a copy is intact, or for a hash-based allow rule, GitHub lists each file's
+SHA-256 on the release page; compare it with `(Get-FileHash "YT.Music-0.5.1.msi").Hash`. That only
+shows the copy matches what's on the page, though; the attestation is what shows who built it. The
+build also checks the PGP signature of every library it bundles, Chromium included, against each
+publisher's pinned key.
 
 ## Options
 
